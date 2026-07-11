@@ -5,7 +5,7 @@ const APP_SHELL = [
   '/manifest.webmanifest',
   '/assets/gigi-pixel.png',
   '/assets/gigi-chibi-ceci.webp',
-  '/assets/ceci.webp',
+  '/assets/ceci2.png',
   '/icons/apple-touch-icon.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png'
@@ -36,3 +36,4 @@ self.addEventListener('fetch', event => {
   }
   event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));
 });
+
