@@ -8,7 +8,8 @@ const STORE="gigiV12";
 const BACKUP="gigiV12_backup";
 const LEGACY="gigiV9";
 const todayKey=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`};
-const TODAY=todayKey();
+let TODAY=todayKey();
+const syncToday=()=>{const k=todayKey();if(k!==TODAY)TODAY=k;return TODAY};
 const $=id=>document.getElementById(id);
 const $$=sel=>[...document.querySelectorAll(sel)];
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -21,13 +22,13 @@ S.name=S.name||"Gigi";
 let quoteOffset=0,timerSeconds=1500,timerOriginal=1500,timerId=null;
 const QUOTES=[["Depois do medo vem o mundo.","Clarice Lispector"],["No meio do caminho tinha uma pedra.","Carlos Drummond de Andrade"],["Ao vencedor, as batatas.","Machado de Assis"],["O correr da vida embrulha tudo.","João Guimarães Rosa"],["Liberdade é uma palavra que o sonho humano alimenta.","Cecília Meireles"]];
 const XP={water:20,move:30,focus:35,read:25,coffee:15,ceci:15};
-const day=(key=TODAY)=>{S.days[key]||(S.days[key]={t:{},w:0,read:0});S.days[key].t||={};S.days[key].w||=0;S.days[key].read||=0;return S.days[key]};
+const day=(key=syncToday())=>{S.days[key]||(S.days[key]={t:{},w:0,read:0});S.days[key].t||={};S.days[key].w||=0;S.days[key].read||=0;return S.days[key]};
 const save=()=>{const data=JSON.stringify(S);localStorage.setItem(STORE,data);localStorage.setItem(BACKUP,data)};
 function toastMsg(text){const el=$("toast");el.textContent=text;el.classList.add("show");clearTimeout(toastMsg.t);toastMsg.t=setTimeout(()=>el.classList.remove("show"),1900)}
 function confetti(){const box=$("conf"),colors=["#e7498d","#ff9ac3","#c8953c","#a7d8a0"];for(let i=0;i<38;i++){const el=document.createElement("i");el.style.left=Math.random()*100+"%";el.style.background=colors[i%colors.length];el.style.setProperty("--dx",(Math.random()-.5)*250+"px");box.appendChild(el);setTimeout(()=>el.remove(),1800)}}
 function waterGoal(){if(S.goals.water>0)return Math.round(S.goals.water/50)*50;if(!S.w)return 0;return Math.round((S.w*35+(S.tr?350:0))/50)*50}
-function todayMove(){return S.moves.filter(x=>x.d===TODAY).reduce((a,x)=>a+x.m,0)}
-function todayFocus(){return S.focus.filter(x=>x.d===TODAY).reduce((a,x)=>a+x.m,0)}
+function todayMove(){const t=syncToday();return S.moves.filter(x=>x.d===t).reduce((a,x)=>a+x.m,0)}
+function todayFocus(){const t=syncToday();return S.focus.filter(x=>x.d===t).reduce((a,x)=>a+x.m,0)}
 function taskDefinitions(){const wg=waterGoal();return [
 ["water","💧","Cuidar da garrafinha",wg?`Beber ${wg} ml hoje`:"Definir a meta de água",XP.water],
 ["move","↗","Movimentar o corpo",`${S.goals.move} min de corrida, caminhada ou treino`,XP.move],
@@ -38,8 +39,8 @@ function taskDefinitions(){const wg=waterGoal();return [
 ]}
 function setTask(id,value=true,silent=false){const d=day(),old=!!d.t[id];d.t[id]=value;if(old!==value){S.xp=Math.max(0,S.xp+(value?XP[id]:-XP[id]));if(value&&!silent)toastMsg(`+${XP[id]} XP — missão concluída`)}save()}
 function autoTasks(){const d=day(),wg=waterGoal();if(wg&&d.w>=wg&&!d.t.water)setTask("water",true,true);if(todayMove()>=S.goals.move&&!d.t.move)setTask("move",true,true);if(todayFocus()>=S.goals.focus&&!d.t.focus)setTask("focus",true,true);if(d.read>=S.goals.read&&!d.t.read)setTask("read",true,true)}
-function streak(){let count=0,d=new Date();for(let i=0;i<365;i++){const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,v=S.days[k];if(v&&Object.values(v.t||{}).some(Boolean))count++;else if(k!==TODAY)break;d.setDate(d.getDate()-1)}return count}
-function render(){autoTasks();
+function streak(){const t=syncToday();let count=0,d=new Date();for(let i=0;i<365;i++){const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,v=S.days[k];if(v&&Object.values(v.t||{}).some(Boolean))count++;else if(k!==t)break;d.setDate(d.getDate()-1)}return count}
+function render(){syncToday();autoTasks();
 $("date").textContent=new Intl.DateTimeFormat("pt-BR",{weekday:"long",day:"2-digit",month:"long"}).format(new Date()).toUpperCase();
 $("avatarName").textContent=S.name;document.title=`${S.name} — Meu Mundo`;
 const level=1+Math.floor(S.xp/500),cur=S.xp%500;$("level").textContent=level;$("xp").textContent=cur;$("xpbar").style.width=cur/5+"%";
@@ -74,14 +75,14 @@ $("install").onclick=openInstaller;$("installNow").onclick=async()=>{if(installP
 $$('[data-w]').forEach(el=>el.onclick=()=>{const amount=+el.dataset.w,wg=waterGoal();if(!wg){$("setM").showModal();return toastMsg("Defina a meta ou informe o peso")};const before=day().w>=wg;day().w+=amount;S.pet.j=clamp(S.pet.j+1,0,100);if(day().w>=wg&&!day().t.water)setTask("water",true,false);save();render();toastMsg(`+${amount} ml na garrafinha ✨`);if(!before&&day().w>=wg){S.xp+=75;save();confetti();toastMsg("+75 XP — garrafinha completa!")}});
 $$('[data-p]').forEach(el=>el.onclick=()=>{const a=el.dataset.p;if(a==="carinho"){S.pet.j+=11;S.pet.e+=1;toastMsg("Cecí recebeu carinho ♡")}if(a==="passeio"){S.pet.j+=13;S.pet.e-=7;toastMsg("Passeio feito ↗")}if(a==="petisco"){S.pet.j+=7;S.pet.e+=6;toastMsg("Petisco entregue ✦")}S.pet.j=clamp(S.pet.j,0,100);S.pet.e=clamp(S.pet.e,0,100);if(!day().t.ceci)setTask("ceci",true,true);save();render()});
 $("modeBtn").onclick=()=>{S.light=!S.light;save();render()};$("bossNext").onclick=()=>{S.boss=(S.boss+1)%4;save();render()};
-$("moveAdd").onclick=()=>$("moveM").showModal();$("saveMove").onclick=()=>{const minutes=+$("mm").value,km=+$("mk").value||0;if(!minutes)return toastMsg("Informe os minutos");S.moves.push({d:TODAY,t:$("mt").value,m:minutes,k:km});$("mm").value=$("mk").value="";$("moveM").close();if(todayMove()>=S.goals.move&&!day().t.move)setTask("move",true,false);else{S.xp+=Math.max(5,Math.round(minutes/5));save()}render();toastMsg(`${minutes} min registrados ↗`)};
+$("moveAdd").onclick=()=>$("moveM").showModal();$("saveMove").onclick=()=>{const minutes=+$("mm").value,km=+$("mk").value||0;if(!minutes)return toastMsg("Informe os minutos");S.moves.push({d:syncToday(),t:$("mt").value,m:minutes,k:km});$("mm").value=$("mk").value="";$("moveM").close();if(todayMove()>=S.goals.move&&!day().t.move)setTask("move",true,false);else{S.xp+=Math.max(5,Math.round(minutes/5));save()}render();toastMsg(`${minutes} min registrados ↗`)};
 $$('[data-min]').forEach(el=>el.onclick=()=>{clearInterval(timerId);timerId=null;timerSeconds=timerOriginal=+el.dataset.min*60;$$('[data-min]').forEach(x=>x.classList.toggle('on',x===el));drawTimer()});
-$("start").onclick=()=>{if(timerId){clearInterval(timerId);timerId=null;return drawTimer()}if(timerSeconds<=0)timerSeconds=timerOriginal;timerId=setInterval(()=>{timerSeconds--;drawTimer();if(timerSeconds<=0){clearInterval(timerId);timerId=null;const minutes=Math.round(timerOriginal/60),category=$("fc").value,task=$("ft").value.trim()||category;S.focus.push({d:TODAY,m:minutes,c:category,task});S.xp+=Math.max(15,Math.round(minutes*.8));if(todayFocus()>=S.goals.focus&&!day().t.focus)setTask("focus",true,true);save();render();confetti();toastMsg(`Bloco concluído: ${minutes} min`)}},1000);drawTimer()};
+$("start").onclick=()=>{if(timerId){clearInterval(timerId);timerId=null;return drawTimer()}if(timerSeconds<=0)timerSeconds=timerOriginal;timerId=setInterval(()=>{timerSeconds--;drawTimer();if(timerSeconds<=0){clearInterval(timerId);timerId=null;const minutes=Math.round(timerOriginal/60),category=$("fc").value,task=$("ft").value.trim()||category;S.focus.push({d:syncToday(),m:minutes,c:category,task});S.xp+=Math.max(15,Math.round(minutes*.8));if(todayFocus()>=S.goals.focus&&!day().t.focus)setTask("focus",true,true);save();render();confetti();toastMsg(`Bloco concluído: ${minutes} min`)}},1000);drawTimer()};
 $("reset").onclick=()=>{clearInterval(timerId);timerId=null;timerSeconds=timerOriginal;drawTimer()};
 $("saveReadToday").onclick=()=>{const pages=+$("readTodayInput").value;if(!pages)return toastMsg("Informe as páginas lidas");day().read+=pages;$("readTodayInput").value="";S.xp+=Math.max(2,Math.min(15,Math.ceil(pages/2)));if(day().read>=S.goals.read&&!day().t.read)setTask("read",true,true);save();render();toastMsg(`+${pages} páginas registradas 📖`)};
-$("saveBook").onclick=()=>{const title=$("ti").value.trim();if(!title)return toastMsg("Coloque o título");S.book={t:title,a:$("au").value.trim(),p:+$("pg").value||0,n:+$("tot").value||0};if($("rn").value.trim()){S.notes.push({b:title,x:$("rn").value.trim(),d:TODAY});$("rn").value="";S.xp+=5}save();render();toastMsg("Leitura salva 📖")};
-$("finishBook").onclick=()=>{if(!S.book)return toastMsg("Nenhum livro ativo");if(confirm("Marcar como concluído?")){S.doneBooks.push({...S.book,d:TODAY});S.book=null;S.xp+=300;save();render();confetti();toastMsg("+300 XP — livro concluído!")}};
-$("qnext").onclick=()=>{quoteOffset++;renderCoffee()};$("saveCoffee").onclick=()=>{S.coffee.push({d:TODAY,m:$("cm").value,t:$("ct").value,x:$("cb").value.trim()});$("cb").value="";if(!day().t.coffee)setTask("coffee",true,true);save();render();toastMsg("+15 XP — café guardado ☕")};
+$("saveBook").onclick=()=>{const title=$("ti").value.trim();if(!title)return toastMsg("Coloque o título");S.book={t:title,a:$("au").value.trim(),p:+$("pg").value||0,n:+$("tot").value||0};if($("rn").value.trim()){S.notes.push({b:title,x:$("rn").value.trim(),d:syncToday()});$("rn").value="";S.xp+=5}save();render();toastMsg("Leitura salva 📖")};
+$("finishBook").onclick=()=>{if(!S.book)return toastMsg("Nenhum livro ativo");if(confirm("Marcar como concluído?")){S.doneBooks.push({...S.book,d:syncToday()});S.book=null;S.xp+=300;save();render();confetti();toastMsg("+300 XP — livro concluído!")}};
+$("qnext").onclick=()=>{quoteOffset++;renderCoffee()};$("saveCoffee").onclick=()=>{S.coffee.push({d:syncToday(),m:$("cm").value,t:$("ct").value,x:$("cb").value.trim()});$("cb").value="";if(!day().t.coffee)setTask("coffee",true,true);save();render();toastMsg("+15 XP — café guardado ☕")};
 $("saveSet").onclick=()=>{S.name=$("sn").value.trim()||"Gigi";S.w=+$("sw").value||0;S.h=+$("sh").value||0;S.tr=$("train").checked;S.goals.water=Math.max(0,+$("gw").value||0);S.goals.focus=clamp(+$("gf").value||25,5,240);S.goals.move=clamp(+$("gm").value||20,5,240);S.goals.read=clamp(+$("gr").value||10,1,300);S.goals.reward=clamp(+$("greward").value||3,1,6);save();$("setM").close();render();toastMsg("Metas personalizadas e salvas ✨")};
 $("resetGoals").onclick=()=>{S.goals={...DEFAULTS.goals};fillSettings();toastMsg("Metas sugeridas restauradas")};
 window.addEventListener('pagehide',save);window.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')save()});if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{})}
