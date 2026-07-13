@@ -5,6 +5,7 @@
 (()=>{
 "use strict";
 const STORE="gigiV12";
+const BACKUP="gigiV12_backup";
 const LEGACY="gigiV9";
 const todayKey=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`};
 const TODAY=todayKey();
@@ -14,14 +15,14 @@ const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const esc=s=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let installPrompt=null;window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();installPrompt=e;const b=$("installNow");if(b)b.hidden=false});const DEFAULTS={name:"Gigi",xp:0,w:0,h:0,tr:false,light:true,boss:0,days:{},pet:{j:66,e:72},focus:[],moves:[],book:null,notes:[],doneBooks:[],coffee:[],goals:{water:0,focus:25,move:20,read:10,reward:3}};
 let saved=null;
-try{saved=JSON.parse(localStorage.getItem(STORE)||localStorage.getItem(LEGACY)||"null")}catch{}
+try{saved=JSON.parse(localStorage.getItem(STORE)||localStorage.getItem(BACKUP)||localStorage.getItem(LEGACY)||"null")}catch{}
 let S={...DEFAULTS,...(saved||{}),pet:{...DEFAULTS.pet,...(saved?.pet||{})},goals:{...DEFAULTS.goals,...(saved?.goals||{})}};
 S.name=S.name||"Gigi";
 let quoteOffset=0,timerSeconds=1500,timerOriginal=1500,timerId=null;
 const QUOTES=[["Depois do medo vem o mundo.","Clarice Lispector"],["No meio do caminho tinha uma pedra.","Carlos Drummond de Andrade"],["Ao vencedor, as batatas.","Machado de Assis"],["O correr da vida embrulha tudo.","João Guimarães Rosa"],["Liberdade é uma palavra que o sonho humano alimenta.","Cecília Meireles"]];
 const XP={water:20,move:30,focus:35,read:25,coffee:15,ceci:15};
 const day=(key=TODAY)=>{S.days[key]||(S.days[key]={t:{},w:0,read:0});S.days[key].t||={};S.days[key].w||=0;S.days[key].read||=0;return S.days[key]};
-const save=()=>localStorage.setItem(STORE,JSON.stringify(S));
+const save=()=>{const data=JSON.stringify(S);localStorage.setItem(STORE,data);localStorage.setItem(BACKUP,data)};
 function toastMsg(text){const el=$("toast");el.textContent=text;el.classList.add("show");clearTimeout(toastMsg.t);toastMsg.t=setTimeout(()=>el.classList.remove("show"),1900)}
 function confetti(){const box=$("conf"),colors=["#e7498d","#ff9ac3","#c8953c","#a7d8a0"];for(let i=0;i<38;i++){const el=document.createElement("i");el.style.left=Math.random()*100+"%";el.style.background=colors[i%colors.length];el.style.setProperty("--dx",(Math.random()-.5)*250+"px");box.appendChild(el);setTimeout(()=>el.remove(),1800)}}
 function waterGoal(){if(S.goals.water>0)return Math.round(S.goals.water/50)*50;if(!S.w)return 0;return Math.round((S.w*35+(S.tr?350:0))/50)*50}
@@ -83,7 +84,7 @@ $("finishBook").onclick=()=>{if(!S.book)return toastMsg("Nenhum livro ativo");if
 $("qnext").onclick=()=>{quoteOffset++;renderCoffee()};$("saveCoffee").onclick=()=>{S.coffee.push({d:TODAY,m:$("cm").value,t:$("ct").value,x:$("cb").value.trim()});$("cb").value="";if(!day().t.coffee)setTask("coffee",true,true);save();render();toastMsg("+15 XP — café guardado ☕")};
 $("saveSet").onclick=()=>{S.name=$("sn").value.trim()||"Gigi";S.w=+$("sw").value||0;S.h=+$("sh").value||0;S.tr=$("train").checked;S.goals.water=Math.max(0,+$("gw").value||0);S.goals.focus=clamp(+$("gf").value||25,5,240);S.goals.move=clamp(+$("gm").value||20,5,240);S.goals.read=clamp(+$("gr").value||10,1,300);S.goals.reward=clamp(+$("greward").value||3,1,6);save();$("setM").close();render();toastMsg("Metas personalizadas e salvas ✨")};
 $("resetGoals").onclick=()=>{S.goals={...DEFAULTS.goals};fillSettings();toastMsg("Metas sugeridas restauradas")};
-if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{})}
+window.addEventListener('pagehide',save);window.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')save()});if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{})}
 drawTimer();render();
 })();
 </script></body></html>
