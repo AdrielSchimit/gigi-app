@@ -2,6 +2,7 @@ const CACHE = 'espaco-da-gi-v1';
 const APP_SHELL = [
   '/',
   '/index.html',
+  '/birthday.js',
   '/manifest.webmanifest',
   '/assets/gigi-pixel.png',
   '/assets/gigi-chibi-ceci.webp',
