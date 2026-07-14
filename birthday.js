@@ -1,11 +1,10 @@
 (() => {
-  const STORE = "gigiBirthdayV1";
-  const TZ = "America/Sao_Paulo";
-  const TARGET = "2026-07-30";
   const params = new URLSearchParams(location.search);
   const preview = params.get("birthday") === "preview";
   const reset = params.get("reset") === "1";
-
+  const TZ = "America/Sao_Paulo";
+  const TARGET = "2026-07-30";
+  const STORE = preview ? "gigiBirthdayPreviewV1" : "gigiBirthdayV1";
   const nowInZone = (date = new Date()) => {
     const parts = new Intl.DateTimeFormat("en-CA", {
       timeZone: TZ,
@@ -13,28 +12,17 @@
       month: "2-digit",
       day: "2-digit",
     }).formatToParts(date);
-    const y = parts.find((part) => part.type === "year")?.value || "0000";
-    const m = parts.find((part) => part.type === "month")?.value || "00";
-    const d = parts.find((part) => part.type === "day")?.value || "00";
-    return `${y}-${m}-${d}`;
+    const pick = (type) => parts.find((part) => part.type === type)?.value || "00";
+    return `${pick("year")}-${pick("month")}-${pick("day")}`;
   };
-
-  const parseDate = (value) => {
-    const [y, m, d] = value.split("-").map(Number);
-    return new Date(Date.UTC(y, m - 1, d));
-  };
-
-  const diffDays = (from, to) =>
-    Math.max(0, Math.round((parseDate(to) - parseDate(from)) / 86400000));
-
-  const phase = () => {
-    if (preview) return "preview";
-    const today = nowInZone();
-    if (today < TARGET) return "countdown";
-    if (today === TARGET) return "birthday";
-    return "after";
-  };
-
+  const today = nowInZone();
+  const phase = preview ? "preview" : today < TARGET ? "countdown" : today === TARGET ? "birthday" : "after";
+  if (reset) {
+    localStorage.removeItem(STORE);
+    const url = new URL(location.href);
+    url.searchParams.delete("reset");
+    history.replaceState({}, "", `${url.pathname}${url.searchParams.toString() ? `?${url.searchParams.toString()}` : ""}${url.hash}`);
+  }
   const readState = () => {
     try {
       return JSON.parse(localStorage.getItem(STORE) || "{}") || {};
@@ -42,174 +30,134 @@
       return {};
     }
   };
-
-  const saveState = (next) => {
-    localStorage.setItem(STORE, JSON.stringify(next));
-  };
-
-  if (reset) localStorage.removeItem(STORE);
-
+  const saveState = (next) => localStorage.setItem(STORE, JSON.stringify(next));
   const state = readState();
   state.memories = Array.isArray(state.memories) ? state.memories : [];
-  state.introSeenAt = state.introSeenAt || "";
-  state.badgeUnlockedAt = state.badgeUnlockedAt || "";
-  if (!state.memories.length && preview && reset) saveState(state);
+  state.seen = state.seen || "";
 
-  const today = nowInZone();
-  const currentPhase = phase();
-  const specialActive = currentPhase === "birthday" || currentPhase === "preview";
-  const specialSeen = state.introSeenAt === today && currentPhase === "birthday";
-  const specialDaysLeft = diffDays(today, TARGET);
+  const isSpecial = preview || phase === "birthday";
+
+  const css = `
+    .bdayPreviewSeal{position:fixed;top:calc(10px + env(safe-area-inset-top));left:calc(10px + env(safe-area-inset-left));z-index:9999;pointer-events:none;font:900 8px ui-monospace,monospace;letter-spacing:.24em;text-transform:uppercase;color:#a34a72;background:#fff8;border:1px solid #f1c8db;border-radius:999px;padding:7px 9px;backdrop-filter:blur(10px);box-shadow:0 10px 22px #b73e6f14}
+    .bdayModal{width:100%;max-width:none;height:100dvh;padding:0}
+    .bdayModal .modal{min-height:100dvh;border:0;border-radius:0;padding:0;display:grid;grid-template-rows:auto 1fr;background:
+      radial-gradient(circle at 16% 16%,#ffd2e84f,transparent 14%),
+      radial-gradient(circle at 82% 14%,#ffdce94a,transparent 12%),
+      radial-gradient(circle at 14% 78%,#fff3c84a,transparent 10%),
+      radial-gradient(circle at 82% 68%,#f8c6e54a,transparent 11%),
+      linear-gradient(180deg,#fff2f8 0%,#fff9fc 42%,#fff 100%)}
+    .bdayCloseRow{display:flex;justify-content:flex-end;padding:14px 14px 0}
+    .bdayClose{width:40px;height:40px;border:0;border-radius:12px;background:#fff0f7;font-size:24px;line-height:1}
+    .bdayIntro{width:min(100%,760px);margin:0 auto;display:grid;grid-template-columns:minmax(220px,.92fr) minmax(0,1.08fr);gap:18px;align-items:center;padding:clamp(12px,3vw,26px);min-height:calc(100dvh - 68px)}
+    .bdayArt{position:relative;display:grid;place-items:center;min-height:300px;border-radius:28px;background:radial-gradient(circle at 50% 35%,#fff 0,#fff7fb 52%,#ffe4ef 100%);border:1px solid #f0cfde;box-shadow:0 24px 60px #b73e6f12;overflow:hidden}
+    .bdayArt img{width:min(100%,330px);height:auto;display:block;object-fit:contain}
+    .bdayHat{position:absolute;top:22px;right:24px;font-size:34px;transform:rotate(8deg);filter:drop-shadow(0 10px 12px #b73e6f26)}
+    .bdaySpark{position:absolute;border-radius:50%;background:radial-gradient(circle,#fff,transparent 65%);opacity:.72;pointer-events:none}
+    .bdaySpark.s1{width:8px;height:8px;left:16%;top:18%}.bdaySpark.s2{width:6px;height:6px;right:18%;top:16%}.bdaySpark.s3{width:7px;height:7px;left:20%;bottom:18%}.bdaySpark.s4{width:5px;height:5px;right:24%;bottom:14%}
+    .bdayIntroText{display:grid;gap:14px;padding:14px 6px}
+    .bdaySubtle{display:flex;align-items:center;gap:10px;color:var(--r);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.14em}
+    .bdaySubtle:before{content:"";width:34px;height:1px;background:#e8b7ce}
+    .bdayIntroText h2{margin:0;font:700 clamp(36px,6vw,64px)/.95 Georgia;letter-spacing:-.06em;max-width:12ch}
+    .bdayIntroText p{margin:0;max-width:46ch;color:var(--m);font-size:15px;line-height:1.7}
+    .bdayIntroButtons{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+    .bdayIntroButtons .btn{min-width:170px}
+    .bdayCards{width:min(100%,760px);margin:0 auto;padding:0 clamp(12px,3vw,26px) 26px;display:grid;gap:12px}
+    .bdayCard{border:1px solid #ecd0dc;background:#fff;border-radius:20px;padding:16px;box-shadow:0 20px 50px #b73e6f10}
+    .bdayCard h3{margin:0 0 6px;font-size:16px}
+    .bdayCard p{margin:0;color:var(--m);font-size:12px;line-height:1.6}
+    .bdayList{display:grid;gap:8px;margin-top:10px}
+    .bdayMemory{padding:12px 13px;border-left:4px solid var(--p);background:#fff;border-radius:14px;box-shadow:0 10px 24px #b73e6f0f}
+    .bdayMemory b{display:block;font-size:11px;color:var(--p);margin-bottom:4px}
+    .bdayMemory p{margin:0;color:var(--t);font-size:12px;line-height:1.5;white-space:pre-wrap}
+    .bdayEmpty{padding:14px;border:1px dashed #e3bfd0;border-radius:16px;color:var(--m);font-size:12px;text-align:center}
+    .bdayMemoryForm{display:grid;gap:10px}
+    .bdayMemoryForm textarea{min-height:96px}
+    .bdayActions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .bdayActions .btn{flex:1 1 160px}
+    @media (max-width:700px){
+      .bdayIntro{grid-template-columns:1fr;min-height:auto;padding:12px 14px 18px}
+      .bdayArt{min-height:240px}
+      .bdayIntroText h2{max-width:none}
+      .bdayIntroButtons .btn{min-width:0;flex:1 1 100%}
+    }
+    @media (prefers-reduced-motion: reduce){
+      .bdayModal .modal,.bdayArt img{animation:none}
+    }
+  `;
 
   const injectStyles = () => {
     if (document.getElementById("birthdayStyles")) return;
     const style = document.createElement("style");
     style.id = "birthdayStyles";
-    style.textContent = `
-      .bdayChapter{overflow:hidden;background:linear-gradient(160deg,#fff8fc 0%,#fff 48%,#fff0f8 100%);border-color:#efb9cf}
-      .bdayShell{display:grid;gap:14px;padding:18px;position:relative}
-      .bdayShell:before{content:"";position:absolute;inset:auto -12% -35% auto;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,#ff9ac34d,transparent 68%);filter:blur(8px);pointer-events:none}
-      .bdayTop{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-      .bdayKicker{font:900 9px ui-monospace,monospace;letter-spacing:.18em;color:var(--p);text-transform:uppercase}
-      .bdayTop h3{margin:4px 0 0;font:700 26px Georgia;letter-spacing:-.03em}
-      .bdayTop p{margin:6px 0 0;color:var(--m);font-size:12px;line-height:1.55}
-      .bdayBadge{border:1px solid #edbfd3;background:#fff;border-radius:999px;padding:9px 11px;min-width:110px;text-align:center;font-size:10px;font-weight:800;color:var(--r)}
-      .bdayBadge strong{display:block;font-size:16px;color:var(--p);margin-bottom:2px}
-      .bdayGrid{display:grid;grid-template-columns:1.2fr .8fr;gap:12px}
-      .bdayPanel{border:1px solid #ecd0dc;background:#fff;border-radius:18px;padding:14px}
-      .bdayPanel h4{margin:0 0 8px;font-size:14px}
-      .bdayPanel .mut{font-size:11px}
-      .bdayMeter{height:10px;background:#f4dfe8;border-radius:999px;overflow:hidden;border:1px solid #edcfdd}
-      .bdayMeter i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--p2),var(--p))}
-      .bdayList{display:grid;gap:8px}
-      .bdayMemory{padding:12px 13px;border-left:4px solid var(--p);background:#fff;border-radius:14px;box-shadow:0 10px 24px #b73e6f0f}
-      .bdayMemory b{display:block;font-size:11px;color:var(--p);margin-bottom:4px}
-      .bdayMemory p{margin:0;color:var(--t);font-size:12px;line-height:1.5;white-space:pre-wrap}
-      .bdayActions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-      .bdayActions .btn{flex:1 1 160px}
-      .bdayModal{width:min(100vw,760px);max-height:100dvh;padding:0}
-      .bdayModal .modal{min-height:100dvh;border-radius:0;background:radial-gradient(circle at top left,#ffe0ef 0,#fff 36%,#fff8fc 100%);padding:0;display:grid;grid-template-rows:auto 1fr}
-      .bdayHero{padding:22px 18px 18px;border-bottom:1px solid #eed3df;position:relative;overflow:hidden}
-      .bdayHero:after{content:"✦ ✦ ✦";position:absolute;right:18px;top:18px;color:#e7498d55;letter-spacing:6px;font-size:18px}
-      .bdayHero h2{margin:8px 0 10px;font:700 clamp(32px,8vw,56px)/.95 Georgia;letter-spacing:-.05em}
-      .bdayHero p{margin:0;color:var(--m);font-size:13px;line-height:1.65;max-width:52ch}
-      .bdayHero .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
-      .bdayHero .meta span{border:1px solid #ebc7d8;background:#fff;border-radius:999px;padding:8px 10px;font-size:10px;font-weight:800;color:var(--r)}
-      .bdayHero .meta strong{display:block;color:var(--p);font-size:14px;margin-top:2px}
-      .bdayBody{padding:18px;display:grid;gap:12px;overflow:auto}
-      .bdayCard{border:1px solid #ecd0dc;background:#fff;border-radius:20px;padding:16px;box-shadow:0 20px 50px #b73e6f10}
-      .bdayCard h3{margin:0 0 6px;font-size:16px}
-      .bdayCard p{margin:0;color:var(--m);font-size:12px;line-height:1.6}
-      .bdayMemoryForm{display:grid;gap:10px}
-      .bdayMemoryForm textarea{min-height:96px}
-      .bdayEmpty{padding:14px;border:1px dashed #e3bfd0;border-radius:16px;color:var(--m);font-size:12px;text-align:center}
-      .bdayClose{width:40px;height:40px;border:0;border-radius:12px;background:#fff0f7;font-size:24px;line-height:1}
-      .bdayCloseRow{display:flex;justify-content:flex-end;padding:14px 18px 0}
-      @media (max-width:700px){
-        .bdayGrid{grid-template-columns:1fr}
-      }
-      @media (prefers-reduced-motion: reduce){
-        .bdayHero:after{animation:none}
-      }
-    `;
+    style.textContent = css;
     document.head.appendChild(style);
   };
 
-  const ensureJourneyCard = () => {
+  const ensureSeal = () => {
+    if (!preview || document.getElementById("birthdayPreviewSeal")) return;
+    const seal = document.createElement("div");
+    seal.id = "birthdayPreviewSeal";
+    seal.className = "bdayPreviewSeal";
+    seal.textContent = "Modo de prévia";
+    document.body.appendChild(seal);
+  };
+
+  const ensureCard = () => {
     const arcs = document.getElementById("arcs");
-    const journey = document.getElementById("journey");
-    if (!arcs || !journey) return null;
+    if (!arcs) return null;
     let card = document.getElementById("birthdayChapter");
     if (!card) {
       card = document.createElement("article");
       card.id = "birthdayChapter";
-      card.className = "c bdayChapter";
+      card.className = "c";
       arcs.insertAdjacentElement("afterend", card);
     }
     return card;
   };
 
-  const renderJourneyCard = () => {
-    const card = ensureJourneyCard();
+  const renderCard = () => {
+    const card = ensureCard();
     if (!card) return;
-    const unlocked = preview || state.badgeUnlockedAt === today || currentPhase === "after";
-    const headline = currentPhase === "birthday"
-      ? "Hoje o espaço inteiro é dela."
-      : currentPhase === "preview"
-        ? "Prévia do capítulo especial."
-        : currentPhase === "countdown"
-          ? `Faltam ${specialDaysLeft} dias para 30/07/2026.`
-          : "O capítulo especial já ficou guardado.";
-    const sub = currentPhase === "birthday"
-      ? "Esse espaço nasce para celebrar a Gi com a mesma linguagem do app: rotina, afeto e memória."
-      : currentPhase === "preview"
-        ? "Use essa prévia para validar a experiência sem tocar nos dados reais."
-        : currentPhase === "countdown"
-          ? "A contagem existe para deixar a data viva sem poluir o restante do app."
-          : "Depois da data, o registro continua disponível como arquivo afetivo.";
-    const memories = state.memories.slice().reverse().map(item => `<article class="bdayMemory"><b>${item.day}</b><p>${item.text}</p></article>`).join("");
+    const memories = state.memories.slice().reverse().map((item) => `<article class="bdayMemory"><b>${item.day}</b><p>${item.text}</p></article>`).join("");
     card.innerHTML = `
-      <div class="bdayShell">
-        <div class="bdayTop">
-          <div>
-            <span class="bdayKicker">CAPÍTULO ESPECIAL</span>
-            <h3>${headline}</h3>
-            <p>${sub}</p>
-          </div>
-          <div class="bdayBadge"><strong>${unlocked ? "Badge ativa" : currentPhase === "countdown" ? "Contagem" : "Arquivo"}</strong>${unlocked ? "Memória preservada" : currentPhase === "countdown" ? `${specialDaysLeft} dias restantes` : "30/07/2026 · America/Sao_Paulo"}</div>
+      <div class="bdayCards">
+        <div class="bdayCard">
+          <span class="bdaySubtle">CAPÍTULO ESPECIAL</span>
+          <h3>${phase === "after" ? "O capítulo continua guardado." : "Hoje o espaço inteiro é dela."}</h3>
+          <p>${phase === "after" ? "A lembrança permanece disponível para ser revisitada quando quiser." : "O aniversário ganha um espaço próprio, com afeto e sem pressa."}</p>
         </div>
-        <div class="bdayGrid">
-          <div class="bdayPanel">
-            <h4>Estado do capítulo</h4>
-            <p>${currentPhase === "birthday" ? "Hoje está aberto." : currentPhase === "preview" ? "Prévia isolada para teste." : currentPhase === "countdown" ? "A data ainda está chegando." : "A data passou, mas o capítulo continua acessível."}</p>
-            <div class="bdayMeter" aria-hidden="true"><i></i></div>
-          </div>
-          <div class="bdayPanel">
-            <h4>Badge da Gi</h4>
-            <p>${unlocked ? "A insígnia deste capítulo já está desbloqueada neste aparelho." : "Quando 30/07/2026 chegar, a badge vai acender aqui."}</p>
-          </div>
-        </div>
-        <div class="bdayPanel">
-          <h4>Memórias guardadas</h4>
+        <div class="bdayCard">
+          <h3>Memórias guardadas</h3>
           <div class="bdayList">${memories || '<div class="bdayEmpty">Ainda não há memórias salvas neste capítulo.</div>'}</div>
-          ${specialActive ? `
-            <div class="bdayMemoryForm">
-              <label>Nova memória
-                <textarea id="birthdayMemoryInput" placeholder="Escreva uma lembrança curta para guardar no capítulo da Gi."></textarea>
-              </label>
-              <div class="bdayActions">
-                <button class="btn pri" id="birthdaySaveMemory">Salvar memória</button>
-                <button class="btn sec" id="birthdayOpenIntro">Reabrir apresentação</button>
-              </div>
+          <div class="bdayMemoryForm">
+            <label>Nova memória
+              <textarea id="birthdayMemoryInput" placeholder="Escreva uma lembrança curta para guardar no capítulo da Gi."></textarea>
+            </label>
+            <div class="bdayActions">
+              <button class="btn pri" id="birthdaySaveMemory">Salvar memória</button>
+              <button class="btn sec" id="birthdayOpenIntro">Reabrir meu capítulo</button>
             </div>
-          ` : ""}
+          </div>
         </div>
       </div>
     `;
-
     const saveButton = document.getElementById("birthdaySaveMemory");
     if (saveButton) {
       saveButton.onclick = () => {
         const input = document.getElementById("birthdayMemoryInput");
         const text = (input?.value || "").trim();
-        if (!text) {
-          if (window.toastMsg) window.toastMsg("Escreva uma memória para salvar");
-          return;
-        }
+        if (!text) return;
         state.memories.push({ day: today, text });
-        if (currentPhase === "birthday") {
-          state.badgeUnlockedAt = today;
-        }
+        if (phase === "birthday") state.seen = today;
         saveState(state);
-        renderJourneyCard();
-        if (window.toastMsg) window.toastMsg("Memória guardada no capítulo da Gi");
+        renderCard();
       };
     }
-    const introButton = document.getElementById("birthdayOpenIntro");
-    if (introButton) introButton.onclick = openIntro;
+    const reopenButton = document.getElementById("birthdayOpenIntro");
+    if (reopenButton) reopenButton.onclick = openIntro;
   };
 
-  const ensureModal = () => {
+  const ensureDialog = () => {
     let dialog = document.getElementById("birthdayModal");
     if (dialog) return dialog;
     dialog = document.createElement("dialog");
@@ -218,100 +166,47 @@
     dialog.innerHTML = `
       <div class="modal">
         <div class="bdayCloseRow"><button class="bdayClose" type="button" aria-label="Fechar">×</button></div>
-        <div class="bdayHero">
-          <span class="ey">ANIVERSÁRIO DA GIGI</span>
-          <h2 id="birthdayTitle"></h2>
-          <p id="birthdaySubtitle"></p>
-          <div class="meta">
-            <span><strong id="birthdayMetaDate"></strong>30/07/2026</span>
-            <span><strong id="birthdayMetaDays"></strong>${currentPhase === "countdown" ? "dias para abrir" : "camada do dia"}</span>
-            <span><strong id="birthdayMetaBadge"></strong>badge</span>
+        <div class="bdayIntro">
+          <div class="bdayArt" aria-hidden="true">
+            <span class="bdaySpark s1"></span><span class="bdaySpark s2"></span><span class="bdaySpark s3"></span><span class="bdaySpark s4"></span>
+            <img src="/assets/gigi-chibi-ceci.webp" alt="">
+            <div class="bdayHat">🎩</div>
           </div>
-        </div>
-        <div class="bdayBody">
-          <div class="bdayCard">
-            <h3 id="birthdayCardTitle"></h3>
-            <p id="birthdayCardBody"></p>
-          </div>
-          <div class="bdayCard">
-            <h3>Memória rápida</h3>
-            <p id="birthdayCardMemory"></p>
-          </div>
-          <div class="bdayActions">
-            <button class="btn pri" id="birthdayPrimary"></button>
-            <button class="btn sec" id="birthdaySecondary">Fechar</button>
+          <div class="bdayIntroText">
+            <span class="bdaySubtle">CAPÍTULO ESPECIAL</span>
+            <h2 id="birthdayTitle"></h2>
+            <p id="birthdaySubtitle"></p>
+            <div class="bdayIntroButtons">
+              <button class="btn pri" id="birthdayPrimary">Abrir meu capítulo</button>
+              <button class="btn sec" id="birthdaySecondary">Guardar para depois</button>
+            </div>
           </div>
         </div>
       </div>
     `;
     document.body.appendChild(dialog);
-    dialog.querySelector(".bdayClose").onclick = () => dialog.close();
-    dialog.querySelector("#birthdaySecondary").onclick = () => dialog.close();
+    const close = () => dialog.close();
+    dialog.querySelector(".bdayClose").onclick = close;
+    dialog.querySelector("#birthdaySecondary").onclick = close;
     dialog.addEventListener("close", () => {
-      if (currentPhase === "birthday") {
-        state.introSeenAt = today;
-        state.badgeUnlockedAt = today;
+      if (phase === "birthday") {
+        state.seen = today;
         saveState(state);
-        renderJourneyCard();
       }
     });
     return dialog;
   };
 
   function openIntro() {
-    const dialog = ensureModal();
+    const dialog = ensureDialog();
     const title = dialog.querySelector("#birthdayTitle");
     const subtitle = dialog.querySelector("#birthdaySubtitle");
-    const metaDate = dialog.querySelector("#birthdayMetaDate");
-    const metaDays = dialog.querySelector("#birthdayMetaDays");
-    const metaBadge = dialog.querySelector("#birthdayMetaBadge");
-    const cardTitle = dialog.querySelector("#birthdayCardTitle");
-    const cardBody = dialog.querySelector("#birthdayCardBody");
-    const cardMemory = dialog.querySelector("#birthdayCardMemory");
     const primary = dialog.querySelector("#birthdayPrimary");
-
-    const lines = {
-      preview: {
-        title: "Prévia do aniversário da Gi",
-        subtitle: "Tudo aqui roda em modo seguro: a experiência aparece, mas não grava nada no estado real.",
-        metaDays: "preview",
-        metaBadge: "teste",
-        cardTitle: "Capítulo em prévia",
-        cardBody: "Você pode validar texto, layout e comportamento do iPhone sem afetar o dia real.",
-        cardMemory: "Se quiser, salve uma memória na prévia apenas para testar o fluxo. Use o reset para voltar ao começo.",
-        primary: "Abrir capítulo",
-      },
-      birthday: {
-        title: "Hoje é o dia da Gi",
-        subtitle: "O app muda de camada, mas continua com a mesma identidade: rotina, afeto e memória guardada.",
-        metaDays: "hoje",
-        metaBadge: "ativa",
-        cardTitle: "Capítulo vivo",
-        cardBody: "Este é o momento em que a página deixa de ser só rotina e vira lembrança oficial do espaço da Gi.",
-        cardMemory: "A badge fica salva neste aparelho, junto com as memórias que você registrar hoje.",
-        primary: "Ver capítulo",
-      },
-    }[currentPhase] || {
-      title: "Capítulo guardado",
-      subtitle: "A data já passou, mas o registro permanece disponível como arquivo afetivo.",
-      metaDays: "arquivo",
-      metaBadge: "salva",
-      cardTitle: "Arquivo do dia 30",
-      cardBody: "O aniversário já foi, mas o capítulo pode ser revisitado quando você quiser.",
-      cardMemory: "Use a seção de memórias para rever o que ficou guardado.",
-      primary: "Reabrir capítulo",
-    };
-
-    title.textContent = lines.title;
-    subtitle.textContent = lines.subtitle;
-    metaDate.textContent = "Data: ";
-    metaDays.textContent = lines.metaDays;
-    metaBadge.textContent = lines.metaBadge;
-    cardTitle.textContent = lines.cardTitle;
-    cardBody.textContent = lines.cardBody;
-    cardMemory.textContent = lines.cardMemory;
-    primary.textContent = lines.primary;
-
+    title.textContent = phase === "after" ? "O capítulo continua guardado." : "Parabéns, personagem principal.";
+    subtitle.textContent = phase === "after"
+      ? "A lembrança permanece disponível para ser revisitada quando você quiser."
+      : "Hoje não existem metas impossíveis, cobranças ou pressa. Só um lembrete de que o mundo ficou mais bonito no dia em que você chegou.";
+    primary.textContent = "Abrir meu capítulo";
     primary.onclick = () => {
       dialog.close();
       const card = document.getElementById("birthdayChapter");
@@ -325,7 +220,7 @@
     if (typeof original !== "function" || original.__birthdayWrapped) return;
     const wrapped = (...args) => {
       const result = original.apply(window, args);
-      renderJourneyCard();
+      renderCard();
       return result;
     };
     wrapped.__birthdayWrapped = true;
@@ -333,12 +228,11 @@
   };
 
   injectStyles();
+  ensureSeal();
   wrapRender();
-  renderJourneyCard();
+  renderCard();
 
-  if (specialActive && !specialSeen) {
-    setTimeout(() => openIntro(), 250);
-  } else if (currentPhase === "after" && preview) {
-    setTimeout(() => openIntro(), 250);
+  if (isSpecial) {
+    setTimeout(openIntro, 120);
   }
 })();
