@@ -67,6 +67,22 @@
     .bdayIntroText p,.bdayStepText p{margin:0;max-width:46ch;color:var(--m);font-size:15px;line-height:1.7;white-space:pre-wrap}
     .bdayIntroButtons,.bdayStepButtons{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
     .bdayIntroButtons .btn,.bdayStepButtons .btn{min-width:170px}
+    .bdayInvite{display:grid;gap:12px;justify-items:center}
+    .bdayInviteCard{width:min(100%,420px);margin:0 auto;border:1px solid #efd5e1;background:#fff;border-radius:24px;padding:12px;box-shadow:0 22px 48px #b73e6f14}
+    .bdayInviteCard button{all:unset;display:block;width:100%;cursor:pointer;border-radius:18px;overflow:hidden}
+    .bdayInviteCard img{display:block;width:100%;height:auto;border-radius:18px;object-fit:contain;background:#fff}
+    .bdayInviteFallback{display:grid;place-items:center;min-height:220px;padding:18px;border-radius:18px;background:#fff7fb;border:1px dashed #e3bfd0;color:var(--m);font-size:13px;text-align:center;line-height:1.6}
+    .bdayInviteActions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+    .bdayInviteActions .btn{min-width:168px}
+    .bdayInviteNote{font-size:11px;color:var(--m);text-align:center}
+    .bdayLightbox{width:min(100%,980px);padding:0;margin:0 auto;border:0;background:transparent}
+    .bdayLightbox::backdrop{background:#301922c7;backdrop-filter:blur(7px)}
+    .bdayLightbox .modal{padding:14px;background:#fff;border-radius:24px;box-shadow:0 28px 90px #29131f66}
+    .bdayLightbox figure{margin:0}
+    .bdayLightbox img{display:block;width:100%;height:auto;max-height:84dvh;object-fit:contain;border-radius:18px;background:#fff}
+    .bdayLightbox .bdayLightboxTop{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+    .bdayLightbox .bdayLightboxTop strong{font:700 16px Georgia;color:var(--t)}
+    .bdayLightbox .x{flex:0 0 auto}
     .bdayQuote{padding:14px 16px;border:1px solid #f0cfde;border-radius:18px;background:#fff7fb;box-shadow:0 14px 28px #b73e6f0d}
     .bdayQuote p{margin:0;font:700 15px/1.7 Georgia;color:var(--t)}
     .bdayQuote small{display:block;margin-top:8px;color:var(--m);font-size:11px}
@@ -126,6 +142,7 @@
       title: "Um café com o Adriel",
       text: "Sem metas. Sem notificações. Só uma conversa boa.",
       note: "Este convite não tem prazo de validade.",
+      inviteAlt: "Convite especial Um café com o Adriel para Gigi",
       primary: "Guardar meu convite",
       secondary: "Voltar",
     },
@@ -168,6 +185,64 @@
       arcs.insertAdjacentElement("afterend", card);
     }
     return card;
+  };
+
+  const inviteSrc = "/assets/convite-especial.png";
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+  const ensureLightbox = () => {
+    let box = document.getElementById("birthdayLightbox");
+    if (box) return box;
+    box = document.createElement("dialog");
+    box.id = "birthdayLightbox";
+    box.className = "bdayLightbox";
+    box.innerHTML = `
+      <div class="modal">
+        <div class="bdayLightboxTop">
+          <strong>Convite especial</strong>
+          <button class="x" type="button" aria-label="Fechar">×</button>
+        </div>
+        <figure>
+          <img src="${inviteSrc}" alt="${stepData[3].inviteAlt}">
+        </figure>
+      </div>
+    `;
+    document.body.appendChild(box);
+    box.querySelector("button.x").onclick = () => box.close();
+    box.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      box.close();
+    });
+    return box;
+  };
+
+  const openInvitePreview = () => {
+    const box = ensureLightbox();
+    const img = box.querySelector("img");
+    if (img && !img.dataset.bound) {
+      img.dataset.bound = "1";
+      img.addEventListener("error", () => {
+        img.replaceWith(Object.assign(document.createElement("div"), {
+          className: "bdayInviteFallback",
+          textContent: "Convite especial indisponível no momento.",
+        }));
+      }, { once: true });
+    }
+    if (!box.open) box.showModal();
+  };
+
+  const saveInvite = async () => {
+    if (isIOS) {
+      window.open(inviteSrc, "_blank", "noopener,noreferrer");
+      return;
+    }
+    const link = document.createElement("a");
+    link.href = inviteSrc;
+    link.download = "Convite_Especial_Gigi.png";
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   const renderCard = () => {
@@ -275,12 +350,22 @@
     if (currentStep === 3) {
       subtitle.textContent = data.text;
       body.insertAdjacentHTML("beforeend", `
-        <div class="bdayQuote">
-          <p>${data.note}</p>
-          <small>Convite especial</small>
+        <div class="bdayInvite">
+          <div class="bdayInviteCard">
+            <button type="button" id="birthdayInviteThumb" aria-label="Ver convite especial">
+              <img src="${inviteSrc}" alt="${data.inviteAlt}">
+            </button>
+          </div>
+          <div class="bdayQuote">
+            <p>${data.note}</p>
+            <small>Convite especial</small>
+          </div>
+          ${isIOS ? '<div class="bdayInviteNote">No iPhone, toque e segure para salvar.</div>' : ""}
         </div>
       `);
       buttons.insertAdjacentHTML("beforeend", `
+        <button class="btn sec" data-act="preview">Ver convite</button>
+        <button class="btn sec" data-act="save">Salvar PNG</button>
         <button class="btn pri" data-act="complete">${data.primary}</button>
         <button class="btn sec" data-act="back">${data.secondary}</button>
       `);
@@ -307,10 +392,22 @@
         if (act === "next") return goToStep(currentStep + 1);
         if (act === "back") return goToStep(Math.max(0, currentStep - 1));
         if (act === "review") return goToStep(1);
+        if (act === "preview") return openInvitePreview();
+        if (act === "save") return saveInvite();
         if (act === "complete") return completeExperience();
         if (act === "close") return closeExperience();
       };
     });
+
+    const thumb = dlg.querySelector("#birthdayInviteThumb");
+    if (thumb) thumb.onclick = openInvitePreview;
+    const thumbImg = dlg.querySelector("#birthdayInviteThumb img");
+    if (thumbImg && !thumbImg.dataset.bound) {
+      thumbImg.dataset.bound = "1";
+      thumbImg.addEventListener("error", () => {
+        thumbImg.closest(".bdayInviteCard").innerHTML = '<div class="bdayInviteFallback">Convite especial indisponível no momento.</div>';
+      }, { once: true });
+    }
   };
 
   const openExperience = (startStep = 0) => {

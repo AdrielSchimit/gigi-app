@@ -7,6 +7,7 @@ const APP_SHELL = [
   '/assets/gigi-pixel.png',
   '/assets/gigi-chibi-ceci.webp',
   '/assets/ceci2.png',
+  '/assets/convite-especial.png',
   '/icons/apple-touch-icon.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png'
